@@ -1,0 +1,11 @@
+# Dados reais de inventário - NUNCA versionar
+dados/
+painel.html
+maquinas.csv
+
+# Backups e temporários
+*.bak
+config_backup.json
+~$*
+Thumbs.db
+desktop.ini

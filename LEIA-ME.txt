@@ -1,0 +1,133 @@
+﻿MINI CMDB - Controle de máquinas e softwares
+=============================================
+
+O QUE TEM NA PASTA
+  Coletar-Inventario.ps1   Coleta hardware e softwares das máquinas (remoto via WinRM) e gera o painel
+  Gerar-Painel.ps1         Gera só o painel.html (sem coletar de novo)
+  Coletar.bat              Atalho: duplo clique para coletar tudo
+  Coletar-Uma-Maquina.bat  Atalho: pergunta o nome da máquina e coleta só ela (ENTER em branco = esta máquina)
+  Gerar-Painel.bat         Atalho: só atualiza o painel.html com o que já foi coletado (usar com a coleta por GPO)
+  config.json              Lista de softwares PADRÃO e PROIBIDOS (edite à vontade)
+  maquinas.csv             (copie de maquinas.exemplo.csv) Cadastro manual: Ativo (hostname), Responsável, Departamento, Status, Local, Observações
+  dados\                   Criada automaticamente:
+     maquinas\<ATIVO>.json   última coleta de cada máquina
+     mudancas.csv            histórico: software instalado/removido/atualizado, troca de RAM, SO, série, usuário...
+     coletas.csv             log de cada tentativa de coleta (OK / FALHA e o motivo)
+  painel.html              Criado a cada coleta. Abra no navegador (Edge/Chrome). Não precisa de servidor nem internet.
+
+
+1) ONDE COLOCAR
+   Copie a pasta inteira para um compartilhamento de rede do TI, ex.: \\SERVIDOR\TI\MiniCMDB
+   Quem tiver acesso à pasta abre o painel.html. Libere ESCRITA só para o TI.
+
+
+2) PREPARAR AS MÁQUINAS (uma vez) - habilitar o WinRM
+   Opção A - por GPO (recomendado, se tiver domínio AD):
+     Configuração do Computador > Políticas > Modelos Administrativos > Componentes do Windows >
+       Gerenciamento Remoto do Windows (WinRM) > Serviço WinRM >
+       "Permitir gerenciamento remoto do servidor por meio do WinRM" = Habilitado (filtro IPv4: * ou a faixa da rede)
+     Configuração do Computador > Preferências > Configurações do Painel de Controle > Serviços >
+       WinRM = Automático / Iniciar
+     Configuração do Computador > Políticas > Configurações do Windows > Configurações de Segurança >
+       Firewall do Windows Defender > Regras de Entrada > Nova regra predefinida "Gerenciamento Remoto do Windows"
+       (de preferência só aceitando conexões vindas do IP da máquina do TI)
+
+   Opção B - máquina por máquina (PowerShell como administrador):
+       Enable-PSRemoting -Force
+
+   Testar a partir da máquina do TI:
+       Test-WSMan PC-001
+
+
+3) COLETAR
+   Na máquina do TI, com um usuário que seja administrador local das estações (ex.: admin de domínio):
+       Duplo clique em Coletar.bat
+   ou no PowerShell:
+       .\Coletar-Inventario.ps1                                   # todas do maquinas.csv
+       .\Coletar-Inventario.ps1 -ComputerName PC-001        # só uma
+       .\Coletar-Inventario.ps1 -Credential (Get-Credential)      # com outra conta
+
+   Máquina sem WinRM ou fora da rede? Rode NELA (como admin), apontando para a pasta de rede:
+       \\SERVIDOR\TI\MiniCMDB\Coletar-Inventario.ps1 -Local
+
+   Se aparecer erro de "execução de scripts desabilitada", use:
+       powershell -ExecutionPolicy Bypass -File .\Coletar-Inventario.ps1
+
+
+4) AUTOMATIZAR (coleta diária às 12h, horário em que as máquinas estão ligadas)
+   PowerShell como administrador, na máquina do TI (ajuste o caminho e a conta):
+
+     $acao  = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument '-NoProfile -ExecutionPolicy Bypass -File "\\SERVIDOR\TI\MiniCMDB\Coletar-Inventario.ps1"'
+     $hora  = New-ScheduledTaskTrigger -Daily -At 12:00
+     Register-ScheduledTask -TaskName 'Mini CMDB - Coleta' -Action $acao -Trigger $hora -User 'DOMINIO\svc_inventario' -Password 'SENHA' -RunLevel Highest
+
+   Dica: crie uma conta de serviço só para isso (admin local das estações via GPO "Grupos Restritos").
+
+
+4B) ALTERNATIVA: COLETA POR GPO (cada máquina se coleta sozinha, NÃO precisa de WinRM)
+   Cada estação roda o script como SYSTEM e grava o resultado direto na pasta de rede.
+
+   a) Permissões na pasta de rede (\\SERVIDOR\TI\MiniCMDB):
+      - Compartilhamento: "Computadores do domínio" (Domain Computers) = Alteração
+      - NTFS na pasta MiniCMDB: "Computadores do domínio" = Leitura e execução
+      - NTFS na subpasta dados (crie se não existir): "Computadores do domínio" = Modificar
+      (Quando roda como SYSTEM, a máquina acessa a rede com a conta do computador, ex.: EMPRESA\PC-001$)
+
+   b) Crie uma GPO vinculada à OU das estações:
+      Configuração do Computador > Preferências > Configurações do Painel de Controle >
+      Tarefas Agendadas > Novo > Tarefa Agendada (Pelo menos Windows 7)
+
+        Aba Geral:
+          Nome: Mini CMDB - Coleta
+          Conta: NT AUTHORITY\SYSTEM
+          [x] Executar com privilégios mais altos
+          [x] Executar estando o usuário conectado ou não
+        Aba Disparadores (crie os dois):
+          - Diariamente às 12:00
+          - Na inicialização (atrasar a tarefa por 10 minutos)
+        Aba Ações > Iniciar um programa:
+          Programa:   powershell.exe
+          Argumentos: -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "\\SERVIDOR\TI\MiniCMDB\Coletar-Inventario.ps1" -Gpo
+        Aba Configurações:
+          [x] Executar a tarefa assim que possível após uma inicialização agendada ter sido perdida
+          [x] Interromper a tarefa se ela for executada por mais de: 1 hora
+        Aba Condições:
+          [ ] Iniciar a tarefa somente se o computador estiver ligado à rede elétrica (DESMARQUE, para notebooks)
+
+   c) Gerar o painel: as máquinas NÃO geram o painel (para não brigarem pelo mesmo arquivo).
+      Na máquina do TI, dê duplo clique em Gerar-Painel.bat sempre que quiser ver o painel atualizado,
+      ou agende o Gerar-Painel.ps1 para rodar todo dia às 14:00 (mesmo comando do item 4, trocando o arquivo).
+
+   d) Testar numa máquina antes de aplicar em todas:
+        gpupdate /force
+        schtasks /run /tn "Mini CMDB - Coleta"
+      Depois de ~2 minutos, confira dados\maquinas\<NOME>.json na pasta de rede.
+      Se não aparecer, veja o log local da máquina: C:\ProgramData\MiniCMDB\ultima-coleta.log
+      (o erro mais comum é "Acesso negado" = falta a permissão do item a).
+
+   Dá para usar os dois modos juntos: GPO para as máquinas do domínio e
+   Coletar-Uma-Maquina.bat para as que estão fora (ex.: notebook que ficou fora da rede).
+
+
+5) MANUTENÇÃO DO CADASTRO
+   - maquinas.csv abre no Excel. Salve como "CSV (separado por vírgulas)" ou "CSV UTF-8"; os dois funcionam.
+   - Status sugeridos: Em uso, Disponível, Backup, Manutenção, Descartado (Descartado não é coletado).
+   - Máquina nova que for coletada e não estiver no CSV aparece no painel como "Não cadastrado".
+   - Para mudar a lista de softwares padrão, edite config.json. O campo "Padrao" é uma expressão regular
+     comparada com o nome que aparece em "Aplicativos instalados" do Windows (ex.: "Adobe Acrobat|Adobe Reader").
+     "Obrigatorio": false = aparece no painel, mas não conta na conformidade.
+
+
+6) O QUE O PAINEL MOSTRA
+   - Visão geral: totais, conformidade, máquinas sem coleta, softwares proibidos, disco quase cheio,
+     Windows sem atualização há mais de 45 dias, falhas de coleta.
+   - Máquinas: tabela com filtro/busca (inclusive por software, IP, nº de série) e checklist automático.
+     Clique numa máquina para ver hardware, rede, todos os softwares e o histórico de mudanças.
+   - Softwares: todos os programas encontrados na rede, em quantas máquinas e quais versões.
+   - Mudanças: tudo que foi instalado, removido ou atualizado, e trocas de hardware/usuário.
+   - Exportar CSV: gera a planilha (abre no Excel) com tudo, ou só o que estiver filtrado na aba Máquinas.
+
+Observações
+  - Programas "portáteis" (ex.: AnyDesk executado sem instalar) não aparecem, porque não ficam registrados no Windows.
+  - Programas instalados só para um usuário aparecem quando esse usuário está logado na hora da coleta.
+  - Compatível com Windows PowerShell 5.1 (já vem no Windows 10/11) e PowerShell 7.

@@ -1,0 +1,6 @@
+﻿Ativo;Responsavel;Departamento;Status;Local;Observacoes
+PC-001;Maria Exemplo;Financeiro;Em uso;Matriz - 1º andar;
+PC-002;João Exemplo;Comercial;Em uso;Matriz - 2º andar;
+NB-001;Treinamento;Recursos Humanos;Em uso;Sala de treinamento;Notebook compartilhado
+NB-002;Estoque TI;TI;Disponível;Almoxarifado TI;
+PC-003;Backup;TI;Backup;Almoxarifado TI;

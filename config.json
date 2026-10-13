@@ -1,0 +1,21 @@
+{
+  "NomeEmpresa": "TI - Controle de Ativos",
+  "DiasParaConsiderarDesatualizado": 7,
+  "ThrottleLimit": 16,
+  "SoftwaresPadrao": [
+    { "Nome": "Adobe Reader",   "Padrao": "Adobe Acrobat|Adobe Reader", "Obrigatorio": true  },
+    { "Nome": "AnyDesk",        "Padrao": "^AnyDesk",                   "Obrigatorio": true  },
+    { "Nome": "VNC",            "Padrao": "VNC",                        "Obrigatorio": true  },
+    { "Nome": "Bitdefender",    "Padrao": "Bitdefender",                "Obrigatorio": true  },
+    { "Nome": "Google Chrome",  "Padrao": "^Google Chrome",             "Obrigatorio": true  },
+    { "Nome": "OpenVPN",        "Padrao": "OpenVPN",                    "Obrigatorio": true  },
+    { "Nome": "Pacote Office",  "Padrao": "Microsoft Office|Microsoft 365|Office 16 Click-to-Run", "Obrigatorio": true },
+    { "Nome": "PDF Creator",    "Padrao": "PDFCreator|PDF24",           "Obrigatorio": true  },
+    { "Nome": "Skype",          "Padrao": "Skype",                      "Obrigatorio": false },
+    { "Nome": "7-Zip",          "Padrao": "7-Zip",                      "Obrigatorio": true  }
+  ],
+  "SoftwaresProibidos": [
+    { "Nome": "Torrent",        "Padrao": "uTorrent|BitTorrent|qBittorrent" },
+    { "Nome": "Jogos/Steam",    "Padrao": "^Steam$|Epic Games" }
+  ]
+}
